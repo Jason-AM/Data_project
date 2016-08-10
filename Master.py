@@ -13,6 +13,7 @@ path.append('./functions/')
 from Raw_data import raw_data
 from Refrom_data import wind_binning , sand_cum_to_rate , sheer_force
 from MI_lag import MI_lag
+from multiple_plots import multi_plot
 
 
 #==========================================================================
@@ -58,29 +59,25 @@ sheer_force_b = sheer_force_b[1::2]
 
 #possies = np.where(np.logical_and(windspeed_station_a[:-21]>=4.999, windspeed_station_a[:-21]<=5.001))
 #plt.plot( windspeed_station_a[:-21][possies] , station_a_sand[:,1][21:][possies] , 'o' )
-
+#
 #possies = np.where(np.logical_and(sheer_force_a[:-21]>=0.999, sheer_force_a[:-21]<=1.001))
 #plt.plot( sheer_force_a[:-21][possies] , station_a_sand[:,1][21:][possies] , 'o' )
 #print possies
 #
 #
 #plt.show()
-#exit()
+##exit()
 
 #==========================================================================
 #plots of the raw data
 
+#ydata is the first entry, need to make it an array of all the data
+#that needs plotting
 
-#f , axarr = plt.subplots(2, ncols=1, sharex=True, sharey=False)
-##
-#ax_s_1 = axarr.flat[0]
-#ax_s_1.plot( sheer_force_a)
-##
-#ax_s_2 = axarr.flat[1]
-#ax_s_2.plot( station_a_sand[:,1])
-#
-#plt.show()
-#exit()
+Y_plotting = [sheer_force_a , station_a_sand[:,1] , windspeed_station_a ]
+multi_plot(Y_plotting)
+
+exit()
 
 #==========================================================================
 
