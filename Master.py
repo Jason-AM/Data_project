@@ -74,10 +74,10 @@ sheer_force_b = sheer_force_b[1::2]
 #ydata is the first entry, need to make it an array of all the data
 #that needs plotting
 
-Y_plotting = [sheer_force_a , station_a_sand[:,1] , windspeed_station_a ]
-multi_plot(Y_plotting)
+#Y_plotting = [sheer_force_a , station_a_sand[:,1] , windspeed_station_a ]
+#multi_plot(Y_plotting)
 
-exit()
+
 
 #==========================================================================
 
@@ -106,32 +106,32 @@ exit()
 #Remove the noise which are define by the largest and smallest events in the
 # first 20000 positions
 
-maxi = np.max( np.abs(station_a_sand[:,1][:20000]) )
-
-noise_pos = np.where( np.abs(station_a_sand[:,1]) < maxi )
-cleaned_sand_a = station_a_sand[:,1]
-cleaned_sand_a[noise_pos] = 0
-
-
-maxi = np.max( np.abs(station_b_sand[:,1][:20000]) )
-
-noise_pos = np.where( np.abs(station_b_sand[:,1]) < maxi )
-cleaned_sand_b = station_b_sand[:,1]
-cleaned_sand_b[noise_pos] = 0
-
-
-
-#now I would like to find the places where the ratios exceed 10 and kill that data
-bucket_range = 30
-lag = 20
-for i in np.arange(lag+bucket_range,len( cleaned_sand_a )):
-    rng = cleaned_sand_b[i-lag-bucket_range:i-lag+bucket_range]
-    max_pos = np.argmax( np.abs(rng) )
-    max_val = float(rng[max_pos])
-    if max_val != 0:
-        ratio = cleaned_sand_a[i]/max_val
-        if ratio > 10 or ratio < -5:
-            cleaned_sand_a[i] = 0
+#maxi = np.max( np.abs(station_a_sand[:,1][:20000]) )
+#
+#noise_pos = np.where( np.abs(station_a_sand[:,1]) < maxi )
+#cleaned_sand_a = station_a_sand[:,1]
+#cleaned_sand_a[noise_pos] = 0
+#
+#
+#maxi = np.max( np.abs(station_b_sand[:,1][:20000]) )
+#
+#noise_pos = np.where( np.abs(station_b_sand[:,1]) < maxi )
+#cleaned_sand_b = station_b_sand[:,1]
+#cleaned_sand_b[noise_pos] = 0
+#
+#
+#
+##now I would like to find the places where the ratios exceed 10 and kill that data
+#bucket_range = 30
+#lag = 20
+#for i in np.arange(lag+bucket_range,len( cleaned_sand_a )):
+#    rng = cleaned_sand_b[i-lag-bucket_range:i-lag+bucket_range]
+#    max_pos = np.argmax( np.abs(rng) )
+#    max_val = float(rng[max_pos])
+#    if max_val != 0:
+#        ratio = cleaned_sand_a[i]/max_val
+#        if ratio > 10 or ratio < -5:
+#            cleaned_sand_a[i] = 0
 
 #bucket_range = 30
 #lag = 20
@@ -198,90 +198,165 @@ for i in np.arange(lag+bucket_range,len( cleaned_sand_a )):
 #=========================================================================
 
 #
-#try Bayesian fitting second, hectic attempt
+#try Bayesian fitting second, hectic attempt number 2, efficient
 
 
-#first make data into a vector from the time lage
+#first make data into a vector from the time lag
 
-def x_data_time_vec(x_data , lag , start_pt , finish_pt):
+def x_data_time_vec(x_data , lag , start_pt , finish_pt ):
     #now need to include data from around the lag time
     
     time_indices = np.arange( -int(lag/4.)  , int(lag/4.))
     
     len_new_array = finish_pt - start_pt
     x_data_time = np.zeros(   (len_new_array  , len(time_indices)) )
-    for time in time_indices:
-        x_data_time[:,time] = x_data[start_pt+time : finish_pt+time]
-
+    for time_i in range(len(time_indices)):
+        time = time_indices[time_i]
+        x_data_time[:,time_i] = x_data[start_pt+time : finish_pt+time]
 
     return x_data_time
 
 
+#define an exponential function to use in fitting
+#should create a row of Phi
+def fit_func(one_data_pt , num_of_params , rate_min , rate_max):
+    rate_v = np.arange( rate_min  , rate_max , (rate_max - rate_min)/float(num_of_params) )
+    phi_row = []
+    for i in range(num_of_params):
+        val = np.exp( -rate_v[i]*one_data_pt  )
+        phi_row.append(val)
+    #we need to flatten so that each time element of the input is
+    #given a differnt weight.
+    return np.array( phi_row ).flatten()
 
-def phi(x_data_time , num_funcs ): #note xdata is a vector
-    
-    M = num_funcs
-    X = []
-    for data_pt in range(len(x_data_time)):
-        phi_row = []
-        rate = np.arange( 0.8 , 1.2 , 0.4/M )
-        for coeff in range(M):
-            
-            vec_data = x_data_time[data_pt]
-            
-#            mu_i_change = 0.05
-#            mu_i = 0 - (M/2.)*mu_i_change
-#            s = 0.01
-#
-#            val = np.exp( -( vec_data - mu_i)**2/(2*s) )
-#            mu_i += mu_i_change
-            #val = vec_data**coeff
+#now define phi itself
+def Phi(input , num_of_params , rate_min , rate_max):
+    Phi = []
+    for i in range( len(input) ):
+        one_data_pt = input[i]
+        row = fit_func(one_data_pt , num_of_params , rate_min , rate_max)
+        Phi.append(row)
 
-            val = np.exp( -rate[coeff]*vec_data )
-            
-            phi_row = np.append(phi_row , val)
-        
-        X.append(phi_row)
+    return np.array( Phi )
 
-    return np.array(X)
 
-lag = 25
-num_parameters = 10
 
+
+lag = 21
+num_parameters = 1
+l_rate = 0.001
+h_rate = l_rate+1
+
+
+#Learning the model
 
 #data = x_data_time_vec(windspeed_station_a , lag , 100000 , 300000)
 data = x_data_time_vec(sheer_force_a , lag , 100000 , 300000)
 
-phi_X = phi(data , num_parameters)
+phi_X = Phi(data , num_parameters ,l_rate , h_rate)
+
 
 from sklearn import linear_model
+
 clf = linear_model.BayesianRidge()
-#clf.fit(phi_X, station_a_sand[:,1][100000+lag:300000+lag])
+clf.fit(phi_X, station_a_sand[:,1][100000+lag:300000+lag])
 #try with cleaned data
-clf.fit(phi_X, cleaned_sand_a[100000+lag:300000+lag])
-print clf.coef_
-print clf.alpha_
-print clf.lambda_
-print clf.intercept_
+#clf.fit(phi_X, cleaned_sand_a[100000+lag:300000+lag])
 
 
 
-f , axarr = plt.subplots(2, ncols=1, sharex=True, sharey=False)
-#
-ax_s_1 = axarr.flat[0]
+#making and plotting the predictions
+
 #data_2 = x_data_time_vec(windspeed_station_b , lag , 100000 , 200000)
 data_2 = x_data_time_vec(sheer_force_b , lag , 100000 , 200000)
-phi_x2 = phi(data_2 , num_parameters)
-ax_s_1.plot(clf.predict( phi_x2 ))
-#
-ax_s_2 = axarr.flat[1]
-#ax_s_2.plot( station_b_sand[:,1][100000+lag:200000+lag] )
-##show cleaned sand data
-ax_s_2.plot( cleaned_sand_b[100000+lag:200000+lag] )
 
+phi_x2  = Phi(data_2 , num_parameters , l_rate , h_rate)
 
-plt.show()
+Y_plotting = [clf.predict( phi_x2 ) , station_b_sand[:,1][100000+lag:200000+lag]]
+#Y_plotting = [clf.predict( phi_x2 ) , cleaned_sand_b[100000+lag:200000+lag]   ]
+multi_plot(Y_plotting)
+
 exit()
+
+
+
+
+
+#=========================================================================
+
+#
+#try Bayesian fitting second, hectic attempt
+
+
+#first make data into a vector from the time lag
+#
+#
+#def phi(x_data_time , num_funcs ): #note xdata is a vector
+#    
+#    M = num_funcs
+#    X = []
+#    for data_pt in range(len(x_data_time)):
+#        phi_row = []
+#        rate = np.arange( 0.8 , 1.2 , 0.4/M )
+#        for coeff in range(M):
+#            
+#            vec_data = x_data_time[data_pt]
+#            
+##            mu_i_change = 0.05
+##            mu_i = 0 - (M/2.)*mu_i_change
+##            s = 0.01
+##
+##            val = np.exp( -( vec_data - mu_i)**2/(2*s) )
+##            mu_i += mu_i_change
+#            #val = vec_data**coeff
+#
+#            val = np.exp( -rate[coeff]*vec_data )
+#            
+#            phi_row = np.append(phi_row , val)
+#        
+#        X.append(phi_row)
+#
+#    return np.array(X)
+#
+#
+#
+#
+#lag = 25
+#num_parameters = 10
+#
+#
+#
+##Learning the model
+#
+##data = x_data_time_vec(windspeed_station_a , lag , 100000 , 300000)
+#data = x_data_time_vec(sheer_force_a , lag , 100000 , 300000)
+#
+#phi_X = phi(data , num_parameters)
+#
+#from sklearn import linear_model
+#clf = linear_model.BayesianRidge()
+##clf.fit(phi_X, station_a_sand[:,1][100000+lag:300000+lag])
+##try with cleaned data
+#clf.fit(phi_X, cleaned_sand_a[100000+lag:300000+lag])
+#print clf.coef_
+#print clf.alpha_
+#print clf.lambda_
+#print clf.intercept_
+#
+#
+#
+##making and plotting the predictions
+#
+##data_2 = x_data_time_vec(windspeed_station_b , lag , 100000 , 200000)
+#data_2 = x_data_time_vec(sheer_force_b , lag , 100000 , 200000)
+#phi_x2 = phi(data_2 , num_parameters)
+#
+#
+##Y_plotting = [clf.predict( phi_x2 ) , station_b_sand[:,1][100000+lag:200000+lag]]
+#Y_plotting = [clf.predict( phi_x2 ) , cleaned_sand_b[100000+lag:200000+lag]   ]
+#multi_plot(Y_plotting)
+#
+#exit()
 
 
 #==========================================================================
@@ -331,36 +406,6 @@ exit()
 #exit()
 #==========================================================================
 
-#==========================================================================
-#PLOTTING
 
 
 
-
-#
-#plt_total = 3
-##
-##
-#f , axarr = plt.subplots(nrows=plt_total, ncols=1, sharex=True, sharey=False)
-##
-#ax_s_1 = axarr.flat[0]
-#ax_s_1.plot( time_s_1 , sand_trans_1 )
-##
-#ax_s_2 = axarr.flat[1]
-#ax_s_2.plot( time_s_2 , sand_trans_2 )
-##
-#ax_c = axarr.flat[2]
-#ax_c.plot( time_s_2[::5] , cross_corr( sand_trans_1[::5] , sand_trans_2[::5] , time_s_2[::5] ) )
-
-#ax_wx = axarr.flat[2]
-#ax_wx.plot( time_w_2 , wvel_x_2)
-#
-#ax_wy = axarr.flat[3]
-#ax_wy.plot( time_w_2 , wvel_y_2)
-#
-#ax_wz = axarr.flat[4]
-#ax_wz.plot( time_w_2 , wvel_z_2)
-#
-#
-#plt.show()
-#==========================================================================
