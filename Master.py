@@ -14,6 +14,7 @@ from Raw_data import raw_data
 from Refrom_data import wind_binning , sand_cum_to_rate , sheer_force
 from MI_lag import MI_lag
 from multiple_plots import multi_plot
+from filters import * #manual_filter_1 , manual_filter_2 ,  wiener_filter , butter_fiter
 
 
 #==========================================================================
@@ -24,7 +25,7 @@ sand_freq = '25Hz' #either '10Hz' or '25Hz'
 
 #raw data function has the sand as [0] and wind as [1]
 station_a = raw_data( 2 , sand_freq)
-station_b = raw_data( 3 , sand_freq )
+station_b = raw_data( 0 , sand_freq )
 
 #The sand data
 station_a_sand = sand_cum_to_rate(station_a[0])
@@ -46,10 +47,10 @@ windspeed_station_b = windspeed_station_b[1::2]
 #find sheer stress
 #we will use a moving average over 20 frames (20 from corelation at 25 HZ, this is 50hz so 40)
 
-sheer_force_a = sheer_force( station_a[1] , 40 )
+sheer_force_a = sheer_force( station_a[1] , 250 )
 sheer_force_a = sheer_force_a[1::2]
 
-sheer_force_b = sheer_force( station_b[1] , 40 )
+sheer_force_b = sheer_force( station_b[1] , 250 )
 sheer_force_b = sheer_force_b[1::2]
 
 
@@ -100,7 +101,31 @@ sheer_force_b = sheer_force_b[1::2]
 #exit()
 
 #==========================================================================
-#DEaling with noise
+#DEaling with noise using filters
+
+
+##used to plot the fft of the data, used to see where cutoffs should be
+#fft_a = np.fft.fft( station_a_sand[:,1] )
+#f_a = np.fft.fftfreq(len(fft_a),1./25)
+#
+#
+#fft_b = np.fft.fft( station_b_sand[:,1] )
+#f_b = np.fft.fftfreq(len(fft_b),1./25)
+#
+#Y_plotting = [fft_a.real , fft_a.imag , fft_b.real , fft_b.imag ]
+#X = [f_a,f_a , f_b , f_b]
+#multi_plot(Y_plotting , X)
+#exit()
+
+#cleaning the data with the filter desired
+cleaned_sand_a = butter_fiter(station_a_sand[:,1] , 25 , 2 , 7)
+cleaned_sand_b = butter_fiter(station_b_sand[:,1] , 25 , 2 , 7)
+
+
+Y_plotting = [sheer_force_a , cleaned_sand_a , windspeed_station_a ]
+multi_plot(Y_plotting)
+exit()
+
 
 
 #Remove the noise which are define by the largest and smallest events in the
@@ -243,15 +268,15 @@ def Phi(input , num_of_params , rate_min , rate_max):
 
 
 lag = 21
-num_parameters = 1
-l_rate = 0.001
-h_rate = l_rate+1
+num_parameters = 10
+l_rate = 0.1
+h_rate = l_rate+1.5
 
 
 #Learning the model
 
-#data = x_data_time_vec(windspeed_station_a , lag , 100000 , 300000)
-data = x_data_time_vec(sheer_force_a , lag , 100000 , 300000)
+data = x_data_time_vec(windspeed_station_a , lag , 100000 , 300000)
+#data = x_data_time_vec(sheer_force_a , lag , 100000 , 300000)
 
 phi_X = Phi(data , num_parameters ,l_rate , h_rate)
 
@@ -259,21 +284,21 @@ phi_X = Phi(data , num_parameters ,l_rate , h_rate)
 from sklearn import linear_model
 
 clf = linear_model.BayesianRidge()
-clf.fit(phi_X, station_a_sand[:,1][100000+lag:300000+lag])
+#clf.fit(phi_X, station_a_sand[:,1][100000+lag:300000+lag])
 #try with cleaned data
-#clf.fit(phi_X, cleaned_sand_a[100000+lag:300000+lag])
+clf.fit(phi_X, cleaned_sand_a[100000+lag:300000+lag])
 
 
 
 #making and plotting the predictions
 
-#data_2 = x_data_time_vec(windspeed_station_b , lag , 100000 , 200000)
-data_2 = x_data_time_vec(sheer_force_b , lag , 100000 , 200000)
+data_2 = x_data_time_vec(windspeed_station_b , lag , 100000 , 200000)
+#data_2 = x_data_time_vec(sheer_force_b , lag , 100000 , 200000)
 
 phi_x2  = Phi(data_2 , num_parameters , l_rate , h_rate)
 
-Y_plotting = [clf.predict( phi_x2 ) , station_b_sand[:,1][100000+lag:200000+lag]]
-#Y_plotting = [clf.predict( phi_x2 ) , cleaned_sand_b[100000+lag:200000+lag]   ]
+#Y_plotting = [clf.predict( phi_x2 ) , station_b_sand[:,1][100000+lag:200000+lag]]
+Y_plotting = [clf.predict( phi_x2 ) , cleaned_sand_b[100000+lag:200000+lag]   ]
 multi_plot(Y_plotting)
 
 exit()
