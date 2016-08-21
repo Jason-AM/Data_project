@@ -1,8 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from sklearn.metrics import mutual_info_score , normalized_mutual_info_score
 from sys import path
+
+from sklearn.metrics import mutual_info_score , normalized_mutual_info_score
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn import linear_model
 
 #==========================================================================
 #importing my own functions
@@ -11,10 +14,11 @@ from sys import path
 path.append('./functions/')
 
 from Raw_data import raw_data
-from Refrom_data import wind_binning , sand_cum_to_rate , sheer_force
+from Refrom_data import *
 from MI_lag import MI_lag
 from multiple_plots import multi_plot
 from filters import * #high_low_freq_split( data , data_freq , cut_off_freq )
+from Curve_fitting_functions import *
 #=========================================================================
 #noce tempate I created to plot mutiple plots om same axis
 
@@ -331,92 +335,82 @@ print '-'*10
 #try Bayesian fitting second, hectic attempt number 2, efficient
 
 
-#first make data into a vector from the time lag
-
-def x_data_time_vec(x_data , lag , start_pt , finish_pt ):
-    #now need to include data from around the lag time
-    
-    time_indices = np.arange( -int(lag/2.)  , int(lag/2.))
-    
-    len_new_array = finish_pt - start_pt
-    x_data_time = np.zeros(   (len_new_array  , len(time_indices)) )
-    for time_i in range(len(time_indices)):
-        time = time_indices[time_i]
-        x_data_time[:,time_i] = x_data[start_pt+time : finish_pt+time]
-
-    return x_data_time
 
 
 #define an exponential function to use in fitting
 #should create a row of Phi
-def fit_func(one_data_pt , num_of_params , rate_min , rate_max):
+def fit_func_exp(one_data_pt , num_of_params , rate_min , rate_max):
     rate_v = np.arange( rate_min  , rate_max , (rate_max - rate_min)/float(num_of_params) )
     phi_row = []
     for i in range(num_of_params):
-        val = np.exp( rate_v[i]*one_data_pt  )
+        val = np.exp( -rate_v[i]*one_data_pt  )
         phi_row.append(val)
     #we need to flatten so that each time element of the input is
     #given a differnt weight.
     return np.array( phi_row ).flatten()
 
-#now define phi itself
-def Phi(input , num_of_params , rate_min , rate_max):
-    Phi = []
-    for i in range( len(input) ):
-        one_data_pt = input[i]
-        row = fit_func(one_data_pt , num_of_params , rate_min , rate_max)
-        Phi.append(row)
 
-    return np.array( Phi )
+##define a ploynomial function to use in fitting
+##should create a row of Phi
+#def fit_func_poly(one_data_pt , num_of_params ):
+#    phi_row = []
+#    for i in range(num_of_params):
+#        val = np.sum(one_data_pt**i)
+#        phi_row.append(val)
+#    #we need to flatten so that each time element of the input is
+#    #given a differnt weight.
+#    return np.array( phi_row )
 
 
-from numpy.linalg import inv
-#define a function to find uncertainty from Bayes
-def S(Phi , alpha,beta):
-    multiply = np.dot( Phi.T  , Phi )
-    alpha_trm = alpha*np.identity(len(Phi.T) )
-    return inv( alpha_trm + beta*multiply )
 
-def uncertainty( x_new , Phi , alpha , beta  , num_of_params , rate_min , rate_max):
-    SN = S(Phi , alpha,beta)
-    phi_trm = fit_func(x_new ,num_of_params , rate_min , rate_max)
-    multi_one = np.dot( SN , phi_trm )
-    multi_two = np.dot( phi_trm.T  , multi_one)
-    return 1./beta + multi_two
+
 
 
 
 lag = 22
-num_parameters = 5
-l_rate = 0.0
-h_rate = l_rate+0.5
+pts_around_lag = 2
+num_parameters = 15
+l_rate = -0.1
+h_rate = l_rate+1
 
 
 #Learning the model
 
-data = x_data_time_vec(windspeed_station_a , lag , 101000 , 300000)
+data = x_data_time_vec(windspeed_station_a , lag , 101000 , 200000 , pts_around_lag)
 #data = x_data_time_vec(sheer_force_a , lag , 101000 , 300000)
 
 
+phi_X =  Design_matrix(data, fit_func_exp , num_parameters  ,  l_rate , h_rate )
+#poly = PolynomialFeatures(3)
+#phi_X = poly.fit_transform(data)
 
-phi_X = Phi(data , num_parameters ,l_rate , h_rate)
+print '-'*10
+print 'finished making first design matrix'
+print '-'*10
 
 
-from sklearn import linear_model
 
 clf = linear_model.BayesianRidge()
 #clf.fit(phi_X, station_a_sand[:,1][100000+lag:300000+lag])
 #try with cleaned data
-clf.fit(phi_X, cleaned_sand_a[1000+lag:200000+lag])
-
+clf.fit(phi_X, cleaned_sand_a[1000+lag:100000+lag])
 
 
 #making and plotting the predictions
 
-data_2 = x_data_time_vec(windspeed_station_b , lag , 101000 , 300000)
+data_2 = x_data_time_vec(windspeed_station_b , lag , 101000 , 200000 , pts_around_lag)
 #data_2 = x_data_time_vec(sheer_force_b , lag , 100100 , 300000)
 
-phi_x2  = Phi(data_2 , num_parameters , l_rate , h_rate)
+
+phi_x2  = Design_matrix( data_2, fit_func_exp , num_parameters  ,  l_rate , h_rate )
+#poly_2 = PolynomialFeatures(3)
+#phi_x2 = poly_2.fit_transform(data_2)
+
+print '-'*10
+print 'finished making second design matrix'
+print '-'*10
+
+
 
 predicted_sand = clf.predict( phi_x2 )
 
@@ -427,22 +421,24 @@ print '-'*10
 
 
 ##Y_plotting = [predicted_sand , station_b_sand[:,1][100000+lag:200000+lag]]
-#Y_plotting = [ predicted_sand  , cleaned_sand_b[1000+lag:200000+lag]   ]
-#multi_plot(Y_plotting)
+Y_plotting = [ predicted_sand  , cleaned_sand_b[1000+lag:100000+lag]   ]
+multi_plot(Y_plotting)
 
 
-unc_vec = []
-for i in range(len(data_2)):
-    unc = uncertainty( data_2[i] , phi_x2 , clf.lambda_ , clf.alpha_  , num_parameters , l_rate , h_rate)
-    unc_vec.append(unc)
-unc_vec = np.array(unc_vec)
 
-
-plt.plot( predicted_sand )
-plt.plot( cleaned_sand_b[1000+lag:200000+lag] )
-
-plt.fill_between( predicted_sand+ np.sqrt(unc_vec) , predicted_sand - np.sqrt(unc_vec), facecolor='#FFB6C1', alpha=1.0, edgecolor='none')
-
+#unc_vec = Bayes_unc( phi_X , phi_x2  , clf.lambda_ , clf.alpha_  )
+#
+##plt.plot( predicted_sand )
+#plt.plot( cleaned_sand_b[1000+lag:10000+lag] )
+#
+##plt.fill_between( predicted_sand+ np.sqrt(unc_vec) , predicted_sand - np.sqrt(unc_vec), facecolor='#FFB6C1', alpha=1.0, edgecolor='none')
+#
+#plt.plot( predicted_sand+ np.sqrt(unc_vec)  , '--' )
+#
+#
+#plt.plot( predicted_sand- np.sqrt(unc_vec)  , '--' )
+#
+#plt.show()
 
 exit()
 

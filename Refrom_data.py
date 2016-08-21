@@ -70,7 +70,23 @@ def sheer_force( wind_data , mving_window ):
     sheer_force_v = np.sqrt( mvg_avg_up_wp**2 + mvg_avg_vp_wp**2 )
     return sheer_force_v
 
+#==========================================================================
+#convert our data into a lsit of vectors objects where the vecotr compoentns
+# are made fro the poojt s around the start time of interest
 
+def x_data_time_vec(x_data , lag , start_pt , finish_pt , range_val ):
+    #now need to include data from around the lag time
+    rng = float( range_val )
+    time_indices = np.arange( -int(lag/rng)  , int(lag/rng))
+    
+    
+    len_new_array = finish_pt - start_pt
+    x_data_time = np.zeros(   (len_new_array  , len(time_indices)) )
+    for time_i in range(len(time_indices)):
+        time = time_indices[time_i]
+        x_data_time[:,time_i] = x_data[start_pt+time : finish_pt+time]
+    
+    return x_data_time
 
 
 
