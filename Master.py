@@ -19,6 +19,10 @@ from MI_lag import MI_lag
 from multiple_plots import multi_plot
 from filters import * #high_low_freq_split( data , data_freq , cut_off_freq )
 from Curve_fitting_functions import *
+from print_data import *
+
+
+
 #=========================================================================
 #noce tempate I created to plot mutiple plots om same axis
 
@@ -107,9 +111,12 @@ from Curve_fitting_functions import *
 #select sand data Hz
 sand_freq = '25Hz' #either '10Hz' or '25Hz'
 
+station_a_num = 0
+station_b_num = 1
+
 #raw data function has the sand as [0] and wind as [1]
-station_a = raw_data( 2 , sand_freq)
-station_b = raw_data( 3 , sand_freq )
+station_a = raw_data( station_a_num , sand_freq)
+station_b = raw_data( station_b_num , sand_freq )
 
 #The sand data
 station_a_sand = sand_cum_to_rate(station_a[0])
@@ -171,17 +178,35 @@ print 'finished loading the data'
 #exit()
 
 
+
+
+
 #cleaning the data with the filter desired
-cleaned_sand_a , noise_sand_a = high_low_freq_split(station_a_sand[:,1][100000:] , 25 , 10)
-cleaned_sand_b , noise_sand_b = high_low_freq_split(station_b_sand[:,1][100000:] , 25 , 10)
+#cleaned_sand_a , noise_sand_a = high_low_freq_split(station_a_sand[:,1][100000:] , 25 , 10)
+#cleaned_sand_b , noise_sand_b = high_low_freq_split(station_b_sand[:,1][100000:] , 25 , 10)
+
+
+cleaned_sand_a = open_file( 'Cleaned_Sand_station_%s'%(station_a_num) )
+cleaned_sand_b = open_file( 'Cleaned_Sand_station_%s'%(station_b_num) )
+
+
 
 print '-'*10
 print 'finished cleaning the data'
 print '-'*10
 
+
+
 #Y_plotting = [station_a_sand[:,1][100000:], cleaned_sand_a , station_b_sand[:,1][100000:], cleaned_sand_b   ]
 #multi_plot(Y_plotting)
 #exit()
+
+
+
+
+
+
+
 
 
 #cleaned_sand_a_2 , noise_sand_a = high_low_freq_split(station_a_sand[:,1][100000:] , 25 , 2)
@@ -266,17 +291,57 @@ print '-'*10
 #this function will force equal length, the wind should be the second input
 #the last value si the total lag needed
 
-#total_lag = 300
+#
+#total_lag = 100
 #bins = 1000
-##MI_vec =  MI_lag(bins ,  station_a_sand[:,1][100000:] , windspeed_station_a[100000:] , total_lag)
+##MI_vec =  MI_lag(bins ,  cleaned_sand_a , windspeed_station_a[100000:] , total_lag)
+#MI_vec =  MI_lag(bins ,   cleaned_sand_a,windspeed_station_a[100000:] , total_lag)
 ##MI_vec =  MI_lag(bins ,  station_a_sand[:,1][100000:] , sheer_force_a[1::2][100000:] , total_lag)
-#MI_vec =  MI_lag(bins ,  cleaned_sand_a[100000:] ,  cleaned_sand_b[100000:] , total_lag)
+##MI_vec =  MI_lag(bins ,  cleaned_sand_a[100000:] ,  cleaned_sand_b[100000:] , total_lag)
+#
+#
 #
 #
 #plt.plot(MI_vec)
 #plt.show()
 #
 #exit()
+
+
+#PLotting the MI plots
+
+f , axarr = plt.subplots(3, ncols=2, sharex=True, sharey=False)
+
+for i in range(6):
+    station_a_sand = open_file( 'MI_station_%s'%(i) )
+    lag = np.arange(0  , len(station_a_sand))*1./25
+    print i
+
+    axarr.flat[i].plot( lag , station_a_sand)
+    stations = [1,2,7,8,13,14]
+    axarr.flat[i].set_title('Station %s'%(stations[i]),size = 22)
+    axarr.flat[i].tick_params(axis='y', which = 'major',labelsize=22)
+    axarr.flat[i].tick_params(axis='x', which = 'major',labelsize=22)
+    #for label in axarr.flat[i].get_xticklabels()[::2]:
+        #label.set_visible(False)
+    for label in axarr.flat[i].get_yticklabels()[::2]:
+        label.set_visible(False)
+
+plt.subplots_adjust(left=0.08, bottom=0.09, right=0.95, top=0.93, wspace=0.12, hspace=None)
+
+left  = 0.125  # the left side of the subplots of the figure
+right = 0.9    # the right side of the subplots of the figure
+bottom = 0.1   # the bottom of the subplots of the figure
+top = 0.9      # the top of the subplots of the figure
+wspace = 0.1   # the amount of width reserved for blank space between subplots
+hspace = 0.5   # the amount of height reserved for white space between subplots
+f.text(0.5, 0.01, 'Lag in sec', ha='center' , size = 26)
+f.text(0.01, 0.5, 'Mutual Infromation Score', va='center', rotation='vertical' , size = 26)
+
+
+plt.show()
+
+exit()
 
 
 
